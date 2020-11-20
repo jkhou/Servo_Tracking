@@ -1,0 +1,20 @@
+<launch>
+
+<!--servo's tf broadcaster-->
+
+<node pkg="servo" type="servo_publisher"
+      args="/servo" name="servo1_publisher"  />
+
+
+<node pkg="servo" type="servo_subscriber"
+      args="/world" name="world_subscriber"  />
+
+
+<node pkg="servo" type="servo_listener"
+      name = "listener"  />
+
+<node pkg="rviz" type="rviz"
+      name = "show"  />
+
+
+</launch>

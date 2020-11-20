@@ -1,0 +1,8 @@
+prefix=/home/hjk/catkin_ws/src/servo/devel
+
+Name: servo
+Description: Description of servo
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
