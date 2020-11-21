@@ -31,15 +31,9 @@ from cv_bridge import CvBridge, CvBridgeError
 from color_feature import color_block_finder,draw_color_block_rect
 
 
-# def __init__(self):
-#     self.servo_pub = rospy.Publisher("servo/pose",Vector3)
 
-
-last_btm_degree = 270 # 最近一次底部舵机的角度值记录
-last_top_degree = 270 # 最近一次顶部舵机的角度值记录
-
-btm_kp = 5 # 底部舵机的Kp系数
-top_kp = 5 # 顶部舵机的Kp系数
+btm_kp = 70 # 底部舵机的Kp系数
+top_kp = 70 # 顶部舵机的Kp系数
 btm_ki = 1 # 底部舵机的Ki系数
 top_ki = 1 # 顶部舵机的Ki系数
 btm_kd = 1 # 底部舵机的Kd系数
@@ -51,6 +45,17 @@ btm_cd=0
 top_cp=0
 top_ci=0
 top_cd=0
+
+global last_btm_degree # 上一次底部舵机的角度
+global last_top_degree # 上一次顶部舵机的角度
+
+global face_x 
+global face_y
+
+last_btm_degree = 270 # 最近一次底部舵机的角度值记录
+last_top_degree = 90 # 最近一次顶部舵机的角度值记录
+
+
 
 offset_dead_block = 0.25 # 设置偏移量的死区
 
@@ -102,12 +107,9 @@ def btm_servo_control(offset_x):
     global btm_kp # 控制舵机旋转的比例系数
     global btm_ki # 控制舵机旋转的积分系数
     global btm_kd # 控制舵机旋转的微分系数
-    global last_btm_degree # 上一次底部舵机的角度
     global prevtime  #上一时刻的时间,从主函数读出  
-    global btm_ci 
-
-    print(last_btm_degree)
-    ##print('@@@@@@@@@@@@')
+    global btm_ci
+    global last_btm_degree # 上一次底部舵机的角度
 
     currtime=time.time()
     dt=currtime-prevtime  #时间的微小增量
@@ -121,15 +123,15 @@ def btm_servo_control(offset_x):
     btm_cd=offset_x/dt #微分控制的乘数
 
     # offset范围在-50到50左右
-    delta_degree = btm_cp * btm_kp+btm_ci*btm_ki+btm_cd*btm_kd
+    delta_degree = btm_cp*btm_kp+btm_ci*btm_ki+btm_cd*btm_kd
 
-    print(delta_degree)
-    ##print('%$$$$$$$$$$$$$$$$$$$$$4')
 
     # 计算得到新的底部舵机角度
     next_btm_degree = last_btm_degree + delta_degree
+
+    print("next_btm_degree:")
     print(next_btm_degree)
-    ##print('!!!!!!!!!')
+
     # 添加边界检测,防止舵机堵转
     if next_btm_degree < 0:
         next_btm_degree = 270
@@ -148,9 +150,9 @@ def top_servo_control(offset_y):
     global top_kp # 控制舵机旋转的比例系数
     global top_ki # 控制舵机旋转的积分系数
     global top_kd # 控制舵机旋转的微分系数
-    global last_top_degree # 上一次顶部舵机的角度
     global prevtime  #上一时刻的时间,从主函数读出   
     global top_ci
+    global last_top_degree # 上一次顶部舵机的角度
 
     currtime=time.time()
     dt=currtime-prevtime  #时间的微小增量
@@ -169,36 +171,40 @@ def top_servo_control(offset_y):
     next_top_degree = last_top_degree - delta_degree
     # 添加边界检测,防止舵机堵转
     if next_top_degree < 0:
-        next_top_degree = 270
+        next_top_degree = 90
     elif next_top_degree > 360:
-        next_top_degree = 270
-    
+        next_top_degree = 90
+
+
     return int(next_top_degree)
 
 
-def rect_filter(rects):
-    '''
-    对色块进行一个过滤
-    '''
-    if len(rects) == 0:
-        return None
+# def rect_filter(rects):
+#     '''
+#     对色块进行一个过滤
+#     '''
+#     if len(rects) == 0:
+#         return None
     
-    # 目前找的是画面中面积最大的色块
-    max_rect =  max(rects, key=lambda rect: rect[2]*rect[3])
-    (x, y, w, h) = max_rect
-    if w < 10 or h < 10:#单位是像素
-        return None
-    return max_rect
+#     # 目前找的是画面中面积最大的色块
+#     max_rect = max(rects, key=lambda rect: rect[2]*rect[3])
+#     (x, y, w, h) = max_rect
+#     if w < 30 or h < 30:#单位是像素
+#         return None
+#     return max_rect
 
 
-def calculate_offset(img_width, img_height, face):
+def calculate_offset(img_width, img_height):
+    global face_x 
+    global face_y
     '''
     计算色块在画面中的偏移量
     偏移量的取值范围： [-1, 1]
     '''
-    (x, y, w, h) = face
-    face_x = float(x + w/2.0)
-    face_y = float(y + h/2.0)
+    #(x, y, w, h) = face
+    # 计算追踪目标的中心点
+    #face_x = float(x + w/2.0)
+    #face_y = float(y + h/2.0)
     # 在画面中心X轴上的偏移量
     offset_x = float(face_x / img_width - 0.5) * 2
     # 在画面中心Y轴上的偏移量
@@ -216,10 +222,22 @@ class image_converter:
     self.bridge = CvBridge()
     self.image_sub = rospy.Subscriber("/collect_image/image",Image,self.callback)
 
+    self.drone_center = rospy.Subscriber("/drone/center",Vector3,self.dronecenter_callback)
+
+
+  def dronecenter_callback(center):
+    global face_x  #飞机的中心像素x位置
+    global face_y  #飞机的中心像素y位置
+
+    face_x = center.x
+    face_y = center.y
+
 
   def callback(self,data):
+    global last_btm_degree # 上一次底部舵机的角度
+    global last_top_degree # 上一次顶部舵机的角度
+
     try:
-        #print('Start!')
         img = self.bridge.imgmsg_to_cv2(data, "bgr8")
 
         if img is not None:
@@ -230,67 +248,63 @@ class image_converter:
             cv2.waitKey(3)
     
         # 颜色阈值下界(HSV) lower boudnary
-        lowerb = (149, 147, 142)
+        #lowerb = (149, 147, 142)
         # 颜色阈值上界(HSV) upper boundary
-        upperb = (202, 212, 220)
+        #upperb = (202, 212, 220)
 
         #检测画面中的红色色块，识别色块并获得矩形区域数组
-        rects = color_block_finder(img, lowerb, upperb, min_w=10, min_h=10)
+        #rects = color_block_finder(img, lowerb, upperb, min_w=10, min_h=10)
         # 绘制色块的矩形区域
-        canvas = draw_color_block_rect(img, rects)
+        #canvas = draw_color_block_rect(img, rects)
         # 在HighGUI窗口 展示最终结果 更新画面
-        cv2.imshow('ColorDetect', canvas)
+        #cv2.imshow('ColorDetect', canvas)
 
 
         # 做适当的延迟，每帧延时0.1s钟
         #if cv2.waitKey(50) & 0xFF == 'q':
             #break
+        #    cv2.destroyAllWindows()
+
 
         # 色块过滤
-        rect = rect_filter(rects)
+        #rect = rect_filter(rects)
 
         global prevtime
         prevtime=time.time()
 
-        if rect is not None:
+        #if rect is not None:
             # 当前画面有色块
-            (x, y, w, h) = rect
-            print('OK!')
+            #(x, y, w, h) = rect
+        print('OK!')
 
-            dt_ms = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') # 含微秒的日期时间，来源 比特量化
-            print(dt_ms)
+        dt_ms = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') # 含微秒的日期时间，来源 比特量化
+        print(dt_ms)
             #cv2.imwrite('%s.jpg'%('pic_'+str(dt_ms)),img)  #写出视频图片.jpg格式
             # 在原彩图上绘制矩形
-            cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 3)
+            #cv2.rectangle(img, (x, y), (x+w, y+h), (0, 0, 255), 3)
 
             # img_height, img_width,_ = img.shape
             # print("img h:{} w:{}".format(img_height, img_width))
             
 
-            # 计算x轴与y轴的偏移量
-            (offset_x, offset_y) = calculate_offset(img_width, img_height, rect)
+        # 计算x轴与y轴的偏移量
+        (offset_x, offset_y) = calculate_offset(img_width, img_height, rect)
 
-            # 计算下一步舵机要转的角度
-            next_btm_degree = btm_servo_control(offset_x)
-            next_top_degree = top_servo_control(offset_y)
-            print("X轴偏移量：{} Y轴偏移量：{}".format(offset_x, offset_y))
-            print('底部角度： {} 顶部角度：{}'.format(next_btm_degree, next_top_degree))
+        # 计算下一步舵机要转的角度
+        next_btm_degree = btm_servo_control(offset_x)
+        next_top_degree = top_servo_control(offset_y)
 
-            degree = Vector3()
 
-            # 设置舵机旋转角度,发布Vector3(x,y,z)
-            self.servo_pub.publish(Vector3(next_btm_degree,next_top_degree,0))
-            
-            #set_cloud_platform_degree(next_btm_degree, next_top_degree)
+        print("X轴偏移量：{} Y轴偏移量：{}".format(offset_x, offset_y))
+        print('底部角度： {} 顶部角度：{}'.format(next_btm_degree, next_top_degree))
+
+        # 设置舵机旋转角度,发布Vector3(x,y,z)
+        self.servo_pub.publish(Vector3(next_btm_degree,next_top_degree,0))
+
         
-            # 更新角度值
-            last_btm_degree = next_btm_degree
-            last_top_degree = next_top_degree
-        
-
-            # print("X轴偏移量：{} Y轴偏移量：{}".format(offset_x, offset_y))
-            # print('底部角度： {} 顶部角度：{}'.format(next_btm_degree, next_top_degree))
-
+        # 更新角度值
+        last_btm_degree = next_btm_degree
+        last_top_degree = next_top_degree
 
       
     except CvBridgeError as e:
@@ -313,11 +327,11 @@ if __name__ == '__main__':
     cv2.namedWindow('ColorDetect', flags=cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
 
     # 创建底部舵机Kp的滑动条
-    cv2.createTrackbar('BtmServoKp*10','ColorDetect',0, 200,update_btm_kp)
+    cv2.createTrackbar('BtmServoKp*10','ColorDetect',0, 300,update_btm_kp)
     # 设置btm_kp的默认值
     cv2.setTrackbarPos('BtmServoKp*10', 'ColorDetect', btm_kp)
     # 创建顶部舵机Kp的滑动条
-    cv2.createTrackbar('TopServoKp*10','ColorDetect',0, 200,update_top_kp)
+    cv2.createTrackbar('TopServoKp*10','ColorDetect',0, 300,update_top_kp)
     # 设置top_kp的默认值
     cv2.setTrackbarPos('TopServoKp*10', 'ColorDetect', top_kp)
 
