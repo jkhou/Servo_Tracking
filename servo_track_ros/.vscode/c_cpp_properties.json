@@ -6,19 +6,21 @@
                 "limitSymbolsToIncludedHeaders": true
             },
             "includePath": [
-                "/home/hjk/catkin_ws/devel/include/**",
+                "/home/ljy/catkin_ws/devel/include/**",
                 "/opt/ros/melodic/include/**",
-                "/home/hjk/catkin_ws/src/learning_service/include/**",
-                "/home/hjk/catkin_ws/src/learning_tf/include/**",
-                "/home/hjk/catkin_ws/src/learning_topic/include/**",
-                "/home/hjk/catkin_ws/src/servo/include/**",
+                "/home/ljy/catkin_ws/src/collect_image/include/**",
+                "/home/ljy/catkin_ws/src/drone_pnp/include/**",
+                "/home/ljy/catkin_ws/src/ftservo_control/include/**",
+                "/home/ljy/catkin_ws/src/ground_to_UAV/include/**",
+                "/home/ljy/catkin_ws/src/VIO/include/**",
+                "/home/ljy/catkin_ws/src/serial/include/**",
                 "/usr/include/**"
             ],
             "name": "ROS",
             "intelliSenseMode": "gcc-x64",
             "compilerPath": "/usr/bin/gcc",
-            "cStandard": "gnu11",
-            "cppStandard": "gnu++14"
+            "cStandard": "c11",
+            "cppStandard": "c++17"
         }
     ],
     "version": 4

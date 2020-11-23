@@ -1,3 +1,0 @@
-/home/hjk/catkin_ws/src/SCServo_Linux/bulid/CMakeFiles/rebuild_cache.dir
-/home/hjk/catkin_ws/src/SCServo_Linux/bulid/CMakeFiles/SCServo.dir
-/home/hjk/catkin_ws/src/SCServo_Linux/bulid/CMakeFiles/edit_cache.dir

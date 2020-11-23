@@ -6,11 +6,19 @@
 #include "std_msgs/Float64.h"
 #include "geometry_msgs/Vector3.h"
 
+using namespace std;
+
 SMSBL servo_bottom;
 SMSBL servo_top;
 
 std::string servo_name;
 const float pi = 3.14159;
+
+float BtmServoCurrentDegree = -1;
+float TopServoCurrentDegree = -1;
+
+float bottom;
+float top;
 
 
 
@@ -22,10 +30,18 @@ void poseCallback(const geometry_msgs::Vector3 theta)
 	// 初始化tf数据
 	//tf::Transform transform;
 
+    bottom = theta.x * (4095.0/360.0);
+    cout << "bottom:" << bottom << endl;
+
+    top = theta.y * (4095.0/360.0);
+    cout << "top:" << top << endl;
+
+
 
 	//BOTTOM SERVO 
-    servo_bottom.WritePosEx(1, theta.x*(4095/360), 80, 100);
-    std::cout<< "Bottom servo pos ="<<theta.x*(180/pi)<<std::endl;
+    //servo_bottom.WritePosEx(1, theta.x*(4095/360), 80, 100);
+    servo_bottom.WritePosEx(1, int(bottom), 80, 100);
+    std::cout<< "Bottom servo pos ="<< bottom <<std::endl;
 	// transform.setOrigin( tf::Vector3(0, 0, L1) );
 	// tf::Quaternion q;
 	// q.setRPY(0, 0, theta.z);
@@ -35,8 +51,12 @@ void poseCallback(const geometry_msgs::Vector3 theta)
 	
 	
 	//TOP SERVO 
-    servo_top.WritePosEx(2, theta.y*(4095/360)/3, 80, 100);
-	std::cout<< "Top servo pos ="<<theta.y*(180/pi)<<std::endl;
+    //servo_top.WritePosEx(2, theta.y*(4095/360), 80, 100);
+    servo_top.WritePosEx(2, int(top), 80, 100);
+
+
+
+	std::cout<< "Top servo pos ="<< top <<std::endl;
 	// tf:: Transform transform2;
 	// //transform2.setOrigin( tf::Vector3(L2*sin(theta.y),L2*cos(theta.y)*cos(theta.z), L2*cos(theta.y)*sin(theta.z)));
 	// transform2.setOrigin( tf::Vector3(L2*sin(theta.y),0,L2*cos(theta.y)));
@@ -44,11 +64,47 @@ void poseCallback(const geometry_msgs::Vector3 theta)
 	// q2.setRPY(0,theta.y,0);
 	// transform2.setRotation(q2);
 
-	// // 广播world与海龟坐标系之间的tf数据e
 
 	// br.sendTransform(tf::StampedTransform(transform2, ros::Time::now(), "servo1", "servo2"));
 
-	ROS_INFO("Successfully received:servo1 [%f] degree,top servo[%f] degree",theta.x, theta.y);
+    //BtmServoCurrentDegree = servo_bottom.ReadPos(1);
+    //TopServoCurrentDegree = servo_top.ReadPos(2);
+
+    // if(servo_bottom.FeedBack(1) != -1)
+    // {
+    //     BtmServoCurrentDegree = servo_bottom.ReadPos(-1);
+
+    // }
+
+    if(servo_top.FeedBack(2) != -1)
+    {
+        TopServoCurrentDegree = servo_top.ReadPos(2);
+        BtmServoCurrentDegree = servo_bottom.ReadPos(1);
+
+        TopServoCurrentDegree = TopServoCurrentDegree*(360.0/4095.0);
+        BtmServoCurrentDegree = BtmServoCurrentDegree*(360.0/4095.0);
+
+        usleep(10*1000);
+
+    }
+
+
+
+    //TopServoCurrentDegree = servo_top.FeedBack(2);
+
+
+	ROS_INFO("Successfully received:btm_servo [%f] degree,top_servo[%f] degree",theta.x, theta.y);
+
+    //ROS_INFO("Current Degree:btm_servo [%d] degree,top_servo[%d] degree", BtmServoCurrentDegree, TopServoCurrentDegree);
+
+    cout << "Bottom Current degree:" <<  BtmServoCurrentDegree;
+    cout << "     Top Current degree:" << TopServoCurrentDegree << endl;
+
+    //ROS_INFO("Current Degree:btm_servo [%f] degree", ServoCurrentDegree);
+
+    //ROS_INFO("Current Degree:top_servo [%f] degree", TopServoCurrentDegree);
+
+
 }
 
 int main(int argc, char **argv){

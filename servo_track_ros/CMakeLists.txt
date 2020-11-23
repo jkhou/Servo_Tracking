@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(servo)
+project(ftservo_control)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -72,7 +72,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   geometry_msgs#   std_msgs
+#   std_msgs
 # )
 
 ################################################
@@ -106,8 +106,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES servo
-#  CATKIN_DEPENDS geometry_msgs roscpp rospy std_msgs
+#  LIBRARIES ftservo_control
+#  CATKIN_DEPENDS roscpp std_msgs
 #  DEPENDS system_lib
 )
 
@@ -118,22 +118,15 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-  include
+# include
+  SCServo_Linux
   ${catkin_INCLUDE_DIRS}
 )
 
-aux_source_directory(include include)
-
-LINK_DIRECTORIES(src/include/SCServo_Linux)
-
-
-
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/servo.cpp
+#   src/${PROJECT_NAME}/ftservo_control.cpp
 # )
-
-#add_library(libSCServo src/SCServo_Linux/libSCServo)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -143,11 +136,12 @@ LINK_DIRECTORIES(src/include/SCServo_Linux)
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/servo_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/ftservo_control_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
-## target back  '/home/hjk/catkin_ws/src/src/SCServo_Linux/libSCServo.a' someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
+## target back to the shorter version for ease of user use
+## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
 ## Add cmake target dependencies of the executable
@@ -159,30 +153,25 @@ LINK_DIRECTORIES(src/include/SCServo_Linux)
 #   ${catkin_LIBRARIES}
 # )
 
-file(GLOB sc 
-"include/SCServo_Linux/*.h"
-"include/SCServo_Linux/*.cpp"
-)
-
-add_library(SCServo ${sc})
-message("build scservo")
+file(GLOB SCServo SCServo_Linux/*.h SCServo_Linux/*.cpp)
 
 
-
-add_executable(tf22 src/tf22.cpp) 
+add_executable(tf22 src/tf22.cpp ${SCServo}) 
 target_link_libraries(tf22 ${catkin_LIBRARIES})
-add_dependencies(tf22 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} )
+add_dependencies(tf22 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(servo_publisher src/servo_publisher.cpp include/SCServo_Linux/SCServo.h) 
-target_link_libraries(servo_publisher ${catkin_LIBRARIES} SCServo)
+add_executable(servo_publisher src/servo_publisher.cpp ${SCServo}) 
+target_link_libraries(servo_publisher ${catkin_LIBRARIES})
 
-add_executable(servo_subscriber src/servo_subscriber.cpp include/SCServo_Linux/SCServo.h) 
-target_link_libraries(servo_subscriber ${catkin_LIBRARIES} SCServo)
+add_executable(servo_subscriber src/servo_subscriber.cpp ${SCServo}) 
+target_link_libraries(servo_subscriber ${catkin_LIBRARIES})
+add_dependencies(servo_subscriber ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(servo_listener src/servo_listener.cpp include/SCServo_Linux/SCServo.h) 
-target_link_libraries(servo_listener ${catkin_LIBRARIES} SCServo)
+add_executable(servo_listener src/servo_listener.cpp ${SCServo}) 
+target_link_libraries(servo_listener ${catkin_LIBRARIES})
 
-add_dependencies(servo_subscriber ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} )
+
+
 
 #############
 ## Install ##
@@ -231,7 +220,7 @@ add_dependencies(servo_subscriber ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_E
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_servo.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_ftservo_control.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
