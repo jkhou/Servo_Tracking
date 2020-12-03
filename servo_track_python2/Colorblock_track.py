@@ -1,25 +1,4 @@
 # -*- coding:utf-8 -*-
-'''
-人脸识别并控制舵机进行人脸追踪
-
-NOTE
-1. 为保证人脸识别的帧率分辨率控制在320x240
-BUG
-1. 刚开始的时候缓存区视频流的问题， 导致舵机云台会乱转 向大佬低头  数值越界
-ESP32出解析的数据：Bottom: 6553600 Top32有时候不执行
-TODO
-1. 获得舵机旋转角度的反馈数据
-2. 创建两个Trackbar， 设置两个Kp取值
-3. 绘制上下臂舵机的波形图
-
-参考Kp取值
-1. Kp = 10  比例系数较大，来回抖动非常明显
-2. Kp = 20  幅度过大，旋转后目标直接丢失: 6556160
-2. Reset 舵机云台，串口数据发送之后，ESP
-3. Kp = 5   幅度适中，有小幅抖动
-4. Kp = 2   相应速度比较慢
-'''
-
 
 import cv2
 import time
@@ -32,8 +11,8 @@ from color_feature import color_block_finder,draw_color_block_rect
 
 
 
-btm_kp = 2 # 底部舵机的Kp系数
-top_kp = 1.5 # 顶部舵机的Kp系数
+btm_kp = 5 # 底部舵机的Kp系数
+top_kp = 5 # 顶部舵机的Kp系数
 btm_ki = 0 # 底部舵机的Ki系数
 top_ki = 0 # 顶部舵机的Ki系数
 btm_kd = 0 # 底部舵机的Kd系数
@@ -49,17 +28,14 @@ top_cd=0
 global last_btm_degree # 上一次底部舵机的角度
 global last_top_degree # 上一次顶部舵机的角度
 
-global face_x 
-global face_y
+global face_x  #追踪点的x坐标
+global face_y  #追踪点的y坐标
 global img
 
-last_btm_degree = 270 # 最近一次底部舵机的角度值记录
-last_top_degree = 90 # 最近一次顶部舵机的角度值记录
-
-
+last_btm_degree = 270   # 下舵机初值设定为270度
+last_top_degree = 90    # 上舵机初值设定为90度
 
 offset_dead_block = 0.1 # 设置偏移量的死区
-
 
 def update_btm_kp(value):
     # 更新底部舵机的比例系数
@@ -105,8 +81,6 @@ def btm_servo_control(offset_x):
     global prevtime  #上一时刻的时间,从主函数读出  
     global btm_ci
     global last_btm_degree # 上一次底部舵机的角度
-
-
 
     currtime=time.time()
     dt=currtime-prevtime  #时间的微小增量
@@ -166,7 +140,9 @@ def top_servo_control(offset_y):
     top_cd=offset_y/dt #微分控制的乘数
 
     # offset范围在-50到50左右
-    delta_degree = top_cp*top_kp+top_ci*top_ki+top_cd*top_kd
+    #delta_degree = top_cp*top_kp+top_ci*top_ki+top_cd*top_kd
+    delta_degree = top_cp*top_kp
+
     # 新的顶部舵机角度
     next_top_degree = last_top_degree - delta_degree
     # 添加边界检测,防止舵机堵转
@@ -175,34 +151,25 @@ def top_servo_control(offset_y):
     elif next_top_degree > 360:
         next_top_degree = 90
 
-
     return int(next_top_degree)
 
 
 
 def calculate_offset(img_width, img_height, face_x, face_y):
-    # global face_x 
-    # global face_y 
+
     '''
     计算色块在画面中的偏移量
     偏移量的取值范围： [-1, 1]
     '''
-    #(x, y, w, h) = face
-    # 计算追踪目标的中心点
-    #face_x = float(x + w/2.0)
-    #face_y = float(y + h/2.0)
-    # 在画面中心X轴上的偏移量
-    print("face_x:")
-    print(face_x)
-    print("img_width:")
-    print(img_width)
-    
+  
     offset_x = float(face_x*1.0 / img_width*1.0 - 0.5) * 2
     print("offset_x:")
     print(offset_x)
 
     # 在画面中心Y轴上的偏移量
     offset_y = float(face_y*1.0 / img_height*1.0 - 0.5) * 2
+    print("offset_y:")
+    print(offset_y)
 
     return (offset_x, offset_y)
 
@@ -211,11 +178,14 @@ def calculate_offset(img_width, img_height, face_x, face_y):
 class image_converter:
 
   def __init__(self):
+    #发布给ros控制舵机的发布器
     self.servo_pub = rospy.Publisher("/current_servo/pose_setpoint",Vector3, queue_size=1)
 
     self.bridge = CvBridge()
+    #图像订阅
     self.image_sub = rospy.Subscriber("/MVcam/image",Image,self.callback)
 
+    #追踪点坐标订阅
     self.drone_center = rospy.Subscriber("/drone/center",Vector3,self.dronecenter_callback)
 
 
@@ -227,7 +197,6 @@ class image_converter:
     face_y = center.y
 
 
-
   def callback(self,data):
     global last_btm_degree # 上一次底部舵机的角度
     global last_top_degree # 上一次顶部舵机的角度
@@ -235,43 +204,13 @@ class image_converter:
 
     cv2.namedWindow('Image window', flags=cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
 
-
     try:
       img = self.bridge.imgmsg_to_cv2(data, "mono8")
 
       if img is not None:
+
           img_height, img_width = img.shape
-          # img_height, img_width,_ = img.shape
           print("img h:{} w:{}".format(img_height, img_width))
-          # print(img)
-          # cv2.namedWindow('Image window')
-          # print("12312312312312312")
-          #cv2.namedWindow('Image window', flags=cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
-
-          # cv2.imshow("Image window", img)
-          #cv2.namedWindow('Image window', flags=cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
-
-          # cv2.namedWindow('Image window', flags=cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
-          # cv2.imshow("Image window", img)
-          # cv2.waitKey(1)
-
-          # # 做适当的延迟，每帧延时0.1s钟
-          # #if cv2.waitKey(50) & 0xFF == 'q':
-          #     #break
-          # #    cv2.destroyAllWindows()
-
-
-
-          # dt_ms = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') # 含微秒的日期时间，来源 比特量化
-          # print(dt_ms)
-          #     #cv2.imwrite('%s.jpg'%('pic_'+str(dt_ms)),img)  #写出视频图片.jpg格式
-          #     # 在原彩图上绘制矩形
-          #     #cv2.rectangle(img, (x, y), (x+w, y+h), (0, 0, 255), 3)
-
-          #     # img_height, img_width,_ = img.shape
-          #     # print("img h:{} w:{}".format(img_height, img_width))
-              
-          ###ljy detection
 
           ret, img = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY)
           _, contours, hierarchy = cv2.findContours(img,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)  
@@ -284,7 +223,7 @@ class image_converter:
                   max_area = area
                   max_area_index = index
 
-          cx = img_width/2
+          cx = img_width/2   #追踪点默认设定为画面中心点
           cy = img_height/2
           if max_area_index != -1:
               M = cv2.moments(contours[max_area_index])
@@ -294,10 +233,8 @@ class image_converter:
           print((cx, cy))
           cv2.circle(img, (cx, cy), 2, 255, 0)
 
-          #cv2.namedWindow('Image window', flags=cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
           cv2.imshow("Image window", img)
           cv2.waitKey(5)
-
 
           global prevtime
           prevtime = time.time()
@@ -318,7 +255,6 @@ class image_converter:
           # 更新角度值
           last_btm_degree = next_btm_degree
           last_top_degree = next_top_degree
-
       
     except CvBridgeError as e:
       print(e)
@@ -340,8 +276,6 @@ def main():
 
 
 if __name__ == '__main__':
-
-  #cv2.namedWindow('Image window', flags=cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
   
   # if  cv2.waitKey(10) & 0xFF == 'q':
   #   cv2.destroyAllWindows()
@@ -376,4 +310,3 @@ if __name__ == '__main__':
   # cv2.setTrackbarPos('TopServoKd*100000', 'Image window', top_kd)
 
   main()
-

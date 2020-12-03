@@ -5,6 +5,8 @@
 #include "SCServo.h"
 #include "std_msgs/Float64.h"
 #include "geometry_msgs/Vector3.h"
+//带时间戳的Vector3消息
+#include "geometry_msgs/Vector3Stamped.h"
 
 using namespace std;
 
@@ -20,90 +22,54 @@ float TopServoCurrentDegree = -1;
 float bottom;
 float top;
 
-
+geometry_msgs::Vector3Stamped current;
+ros::Publisher currentServoDegree;
 
 void poseCallback(const geometry_msgs::Vector3 theta)
-{
-	// 创建tf的广播器
-	//static tf::TransformBroadcaster br;
-
-	// 初始化tf数据
-	//tf::Transform transform;
-
+{   
+    //底部舵机角度换算
     bottom = theta.x * (4095.0/360.0);
     cout << "bottom:" << bottom << endl;
 
+    //顶部舵机角度换算
     top = theta.y * (4095.0/360.0);
     cout << "top:" << top << endl;
 
-
-
-	//BOTTOM SERVO 
-    //servo_bottom.WritePosEx(1, theta.x*(4095/360), 80, 100);
+    //底部舵机控制
     servo_bottom.WritePosEx(1, int(bottom), 80, 100);
     std::cout<< "Bottom servo pos ="<< bottom <<std::endl;
-	// transform.setOrigin( tf::Vector3(0, 0, L1) );
-	// tf::Quaternion q;
-	// q.setRPY(0, 0, theta.z);
-	// transform.setRotation(q);
-
-	// br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", "servo1"));
 	
-	
-	//TOP SERVO 
-    //servo_top.WritePosEx(2, theta.y*(4095/360), 80, 100);
+	//顶部舵机控制
     servo_top.WritePosEx(2, int(top), 80, 100);
-
-
-
 	std::cout<< "Top servo pos ="<< top <<std::endl;
-	// tf:: Transform transform2;
-	// //transform2.setOrigin( tf::Vector3(L2*sin(theta.y),L2*cos(theta.y)*cos(theta.z), L2*cos(theta.y)*sin(theta.z)));
-	// transform2.setOrigin( tf::Vector3(L2*sin(theta.y),0,L2*cos(theta.y)));
-	// tf::Quaternion q2;
-	// q2.setRPY(0,theta.y,0);
-	// transform2.setRotation(q2);
-
-
-	// br.sendTransform(tf::StampedTransform(transform2, ros::Time::now(), "servo1", "servo2"));
-
-    //BtmServoCurrentDegree = servo_bottom.ReadPos(1);
-    //TopServoCurrentDegree = servo_top.ReadPos(2);
-
-    // if(servo_bottom.FeedBack(1) != -1)
-    // {
-    //     BtmServoCurrentDegree = servo_bottom.ReadPos(-1);
-
-    // }
 
     if(servo_top.FeedBack(2) != -1)
     {
+        //读取舵机当前角度
         TopServoCurrentDegree = servo_top.ReadPos(2);
         BtmServoCurrentDegree = servo_bottom.ReadPos(1);
 
+        //将当前角度进行换算
         TopServoCurrentDegree = TopServoCurrentDegree*(360.0/4095.0);
         BtmServoCurrentDegree = BtmServoCurrentDegree*(360.0/4095.0);
 
+        //将当前角度写入消息
+        current.vector.x = BtmServoCurrentDegree;
+        current.vector.y = TopServoCurrentDegree;
+        current.header.stamp = ros::Time::now();
+
+        //发布当前角度的消息
+        currentServoDegree.publish(current);
+
         usleep(10*1000);
-
     }
-
-
-
-    //TopServoCurrentDegree = servo_top.FeedBack(2);
-
 
 	ROS_INFO("Successfully received:btm_servo [%f] degree,top_servo[%f] degree",theta.x, theta.y);
 
-    //ROS_INFO("Current Degree:btm_servo [%d] degree,top_servo[%d] degree", BtmServoCurrentDegree, TopServoCurrentDegree);
-
     cout << "Bottom Current degree:" <<  BtmServoCurrentDegree;
     cout << "     Top Current degree:" << TopServoCurrentDegree << endl;
-
-    //ROS_INFO("Current Degree:btm_servo [%f] degree", ServoCurrentDegree);
-
-    //ROS_INFO("Current Degree:top_servo [%f] degree", TopServoCurrentDegree);
-
+    cout << endl;
+    cout << "current time:" << current.header.stamp;
 
 }
 
@@ -131,7 +97,10 @@ int main(int argc, char **argv){
     //创建节点句柄
     ros::NodeHandle node;
 
-    ros::Subscriber sub = node.subscribe<geometry_msgs::Vector3>("/servo/pose", 10, &poseCallback);
+    ros::Subscriber sub = node.subscribe<geometry_msgs::Vector3>("/current_servo/pose_setpoint", 10, &poseCallback);
+
+    //创建输出当前舵机角度的发布器
+    currentServoDegree = node.advertise<geometry_msgs::Vector3Stamped> ("current_servo/pose",1000);
 
     // 循环等待回调函数
 	ros::spin();
@@ -139,84 +108,3 @@ int main(int argc, char **argv){
     return 0;
 
 }
-
-
-    //创建一个发布者Publisher，消息管道/turtle1/cmd_vel，消息类型std_msgs::String
-    //ros::Publisher servo_pub = node.advertise<std_msgs::Float64> ("servo1/pose",1000);
-//     ros::Publisher servo_pub = node.advertise<geometry_msgs::Vector3> ("servo/pose",1000);
-
-//     //设置一个循环频率每秒5次
-//     ros::Rate loop_rate(5);
-
-//     //计数发布次数
-//     int i  = 0;
-//     while (ros::ok()){
-
-//         geometry_msgs::Vector3 theta;
-
-//         for(i=90;i<=180;i+=1)
-//         {
-//             theta.z = i*pi/180;
-
-//             theta.y = i*pi/180;
-
-
-//             servo_bottom.WritePosEx(1, i*(4095/360), 80, 100);
-//             //舵机(ID1)以最高速度V=80(50*80步/秒)，加速度A=100(100*100步/秒^2)，运行至P1=4095位置
-// 		    std::cout<< "Bottom servo pos ="<<theta.z*(180/pi)<<std::endl;
-// 		    //usleep(400*1000);//[(P1-P0)/(50*V)]*1000+[(50*V)/(A*100)]*1000
-
-//             servo_top.WritePosEx(2, i*(4095/360)/3, 80, 100);
-//             //舵机(ID1)以最高速度V=80(50*80步/秒)，加速度A=100(100*100步/秒^2)，运行至P1=4095位置
-// 		    std::cout<< "Top servo pos ="<<theta.y*(180/pi)<<std::endl;
-// 		    //usleep(400*1000);//[(P1-P0)/(50*V)]*1000+[(50*V)/(A*100)]*1000
-
-//             servo_pub.publish(theta);
-
-//             //ROS_INFO("Successfully published:botteom servo[%f] degree,top servo[%f] degree",theta.z,theta.y);
-
-//         }
-
-//         for(i=180;i>=90;i-=1)
-//         {
-//             theta.z = i*pi/180;
-
-//             theta.y = i*pi/180;
-
-//             servo_bottom.WritePosEx(1, i*(4095/360), 80, 100);//舵机(ID1)以最高速度V=80(50*80步/秒)，加速度A=100(100*100步/秒^2)，运行至P1=4095位置
-// 		    std::cout<< "Bottom servo pos ="<<theta.z*(180/pi) <<std::endl;
-// 		    //usleep(400*1000);//[(P1-P0)/(50*V)]*1000+[(50*V)/(A*100)]*1000
-
-//             servo_top.WritePosEx(2, i*(4095/360)/3, 80, 100);//舵机(ID1)以最高速度V=80(50*80步/秒)，加速度A=100(100*100步/秒^2)，运行至P1=4095位置
-// 		    std::cout<< "Top servo pos ="<<theta.y*(180/pi) <<std::endl;
-// 		    //usleep(400*1000);//[(P1-P0)/(50*V)]*1000+[(50*V)/(A*100)]*1000
-
-//             servo_pub.publish(theta);
-
-//             //ROS_INFO("Successfully published:botteom servo[%f] degree,top servo[%f] degree",theta.z,theta.y);
-
-//         }
-
-//         // servo_bottom.WritePosEx(1, 4095, 80, 100);
-//         // //舵机(ID1)以最高速度V=80(50*80步/秒)，加速度A=100(100*100步/秒^2)，运行至P1=4095位置
-// 		// std::cout<< "Bottom servo pos ="<<4095<<std::endl;
-// 		// usleep(1495*1000);//[(P1-P0)/(50*V)]*1000+[(50*V)/(A*100)]*1000
-
-//         // servo_bottom.WritePosEx(1, 0, 80, 100);
-//         // //舵机(ID1)以最高速度V=80(50*80步/秒)，加速度A=100(100*100步/秒^2)，运行至P1=4095位置
-// 		// std::cout<< "Bottom servo pos ="<<0<<std::endl;
-// 		// usleep(1495*1000);//[(P1-P0)/(50*V)]*1000+[(50*V)/(A*100)]*1000
-
-
-//         //发布消息
-//         //servo_pub.publish(theta);
-
-//         //发布成功在该节点终端显示
-//         //已成功发布第%d条消息,发布的内容为%s打印std_msgs::String类型
-//         //ROS_INFO("Successfully published:botteom servo[%f] degree,top servo[%f] degree",theta.z,theta.y);
-
-//         loop_rate.sleep();
-
-//     }
-//     return 0;
-// }
